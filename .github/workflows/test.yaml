@@ -9,4 +9,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build
-      - run: echo "hello world"
+        run: echo "hello world"
