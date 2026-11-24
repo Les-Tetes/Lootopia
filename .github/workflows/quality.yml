@@ -1,0 +1,68 @@
+# Nom du workflow, affiché dans l'onglet "Actions" et dans les checks de la PR
+name: Quality
+
+# Déclencheurs : quand ce workflow se lance
+on:
+  # À l'ouverture / mise à jour d'une Pull Request ciblant main ou develop
+  pull_request:
+    branches: [main, develop]
+  # À chaque push sur main
+  push:
+    branches: [main]
+  # Permet de le lancer à la main depuis l'onglet Actions
+  workflow_dispatch:
+
+# Évite les runs en double
+concurrency:
+  # Un groupe par branche
+  group: quality-${{ github.ref }}
+  # Un nouveau push annule le run précédent encore en cours
+  cancel-in-progress: true
+
+# Lecture seule du code (principe du moindre privilège)
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, format, types
+    # Machine virtuelle Linux fournie par GitHub
+    runs-on: ubuntu-latest
+    # Coupe le job s'il dépasse 10 minutes
+    timeout-minutes: 10
+    steps:
+      # Télécharge le code du dépôt
+      - uses: actions/checkout@v4
+      # Installe Node.js
+      - uses: actions/setup-node@v4
+        with:
+          # Version lue dans .nvmrc : une seule source de vérité avec le local
+          node-version-file: .nvmrc
+          # Cache npm ; le lockfile est celui de la racine (workspaces)
+          cache: npm
+      # Installe les dépendances de tous les workspaces d'un coup
+      - name: Install dependencies
+        # `npm ci` : installation stricte d'après package-lock.json
+        run: npm ci --ignore-scripts
+      # Valide le schéma Prisma, seulement si un schema.prisma existe
+      - name: Prisma validate
+        if: hashFiles('**/schema.prisma') != ''
+        # DATABASE_URL factice : Prisma exige qu'elle existe, sans se connecter
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
+        run: npx prisma validate
+      # Génère le client Prisma, si schema.prisma existe
+      - name: Prisma generate
+        if: hashFiles('**/schema.prisma') != ''
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
+        run: npx prisma generate
+      # Analyse statique de tout le monorepo (api + web), 0 warning toléré
+      - name: ESLint
+        run: npm run lint
+      # Vérifie le formatage Prettier ; ignoré tant que le script n'existe pas
+      - name: Prettier (check)
+        run: npm run format:check --if-present
+      # Vérifie les types dans chaque workspace (tsc --noEmit)
+      - name: TypeScript (tsc --noEmit)
+        run: npm run typecheck
