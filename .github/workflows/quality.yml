@@ -14,118 +14,55 @@ on:
 
 # Évite les runs en double
 concurrency:
-  # Un groupe par branche : deux runs de la même branche ne tournent pas en parallèle
+  # Un groupe par branche
   group: quality-${{ github.ref }}
-  # Si un nouveau push arrive, l'ancien run encore en cours est annulé
+  # Un nouveau push annule le run précédent encore en cours
   cancel-in-progress: true
 
-# Droits du token GitHub donné au workflow
+# Lecture seule du code (principe du moindre privilège)
 permissions:
-  # Lecture seule du code, aucune écriture possible
   contents: read
 
-# Variables d'environnement globales (visibles par tous les jobs)
-env:
-  # Version de Node utilisée partout, définie à un seul endroit
-  NODE_VERSION: '24'
-
-# Liste des jobs ; ils tournent en parallèle (backend et frontend ici)
 jobs:
-  # Identifiant interne du job backend
-  backend:
-    # Nom affiché dans l'interface GitHub
-    name: Backend (lint, format, types, prisma)
-    # Machine virtuelle Linux fournie par GitHub
-    runs-on: ubuntu-latest
-    # Coupe le job s'il dépasse 10 minutes (évite un job bloqué)
-    timeout-minutes: 10
-    # Réglages par défaut appliqués à toutes les étapes `run`
-    defaults:
-      run:
-        # Toutes les commandes s'exécutent dans le dossier backend/
-        working-directory: backend
-    # Variables d'environnement propres à ce job
-    env:
-      # Valeur factice : prisma validate/generate n'ouvrent pas de connexion.
-      # Prisma exige juste que DATABASE_URL existe pour lire le schéma
-      DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
-    # Étapes exécutées dans l'ordre ; si une échoue, le job s'arrête
-    steps:
-      # Télécharge le code du dépôt sur la machine
-      - uses: actions/checkout@v4
-      # Installe Node.js
-      - uses: actions/setup-node@v4
-        with:
-          # Version de Node, lue dans la variable globale NODE_VERSION
-          node-version: ${{ env.NODE_VERSION }}
-          # Active le cache des paquets npm (installations plus rapides)
-          cache: npm
-          # Le cache est invalidé quand ce fichier change
-          cache-dependency-path: backend/package-lock.json
-      # Étape 1 : installer les dépendances
-      - name: Install dependencies
-        # `npm ci` : installation stricte et reproductible d'après package-lock.json
-        run: npm ci
-      # Étape 2 : vérifier le schéma de base de données
-      - name: Prisma validate
-        # Contrôle que schema.prisma est syntaxiquement et logiquement correct
-        run: npx prisma validate
-      # Étape 3 : générer le client Prisma
-      - name: Prisma generate
-        # Crée les types TypeScript du client ; nécessaire avant le lint et tsc
-        run: npx prisma generate
-      # Étape 4 : analyse statique du code
-      - name: ESLint
-        # Lance le script "lint" du package.json (erreurs et mauvaises pratiques)
-        run: npm run lint
-      # Étape 5 : vérification du style
-      - name: Prettier (check)
-        # Échoue si un fichier n'est pas formaté, sans le modifier
-        run: npm run format:check
-      # Étape 6 : vérification des types
-      - name: TypeScript (tsc --noEmit)
-        # Vérifie les erreurs de typage sans produire de fichiers compilés
-        run: npm run typecheck
-
-  # Identifiant interne du job frontend
-  frontend:
-    # Nom affiché dans l'interface GitHub
-    name: Frontend (lint, format, types)
+  quality:
+    name: Lint, format, types
     # Machine virtuelle Linux fournie par GitHub
     runs-on: ubuntu-latest
     # Coupe le job s'il dépasse 10 minutes
     timeout-minutes: 10
-    # Réglages par défaut des étapes `run`
-    defaults:
-      run:
-        # Toutes les commandes s'exécutent dans le dossier frontend/
-        working-directory: frontend
-    # Étapes exécutées dans l'ordre
     steps:
       # Télécharge le code du dépôt
       - uses: actions/checkout@v4
-      # Installe Node.js avec cache npm
+      # Installe Node.js
       - uses: actions/setup-node@v4
         with:
-          # Version de Node, lue dans la variable globale
-          node-version: ${{ env.NODE_VERSION }}
-          # Active le cache npm
+          # Version lue dans .nvmrc : une seule source de vérité avec le local
+          node-version-file: .nvmrc
+          # Cache npm ; le lockfile est celui de la racine (workspaces)
           cache: npm
-          # Cache invalidé quand le lockfile du front change
-          cache-dependency-path: frontend/package-lock.json
-      # Installer les dépendances
+      # Installe les dépendances de tous les workspaces d'un coup
       - name: Install dependencies
-        # Installation stricte d'après package-lock.json
-        run: npm ci
-      # Analyse statique du code React
-      - name: ESLint (inclut jsx-a11y)
-        # Lance ESLint ; le plugin jsx-a11y contrôle l'accessibilité (WCAG/RGAA)
+        # `npm ci` : installation stricte d'après package-lock.json
+        run: npm ci --ignore-scripts
+      # Valide le schéma Prisma, seulement si un schema.prisma existe
+      - name: Prisma validate
+        if: hashFiles('**/schema.prisma') != ''
+        # DATABASE_URL factice : Prisma exige qu'elle existe, sans se connecter
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
+        run: npx prisma validate
+      # Génère le client Prisma, si schema.prisma existe
+      - name: Prisma generate
+        if: hashFiles('**/schema.prisma') != ''
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
+        run: npx prisma generate
+      # Analyse statique de tout le monorepo (api + web), 0 warning toléré
+      - name: ESLint
         run: npm run lint
-      # Vérification du style
+      # Vérifie le formatage Prettier ; ignoré tant que le script n'existe pas
       - name: Prettier (check)
-        # Échoue si un fichier n'est pas formaté, sans le modifier
-        run: npm run format:check
-      # Vérification des types
+        run: npm run format:check --if-present
+      # Vérifie les types dans chaque workspace (tsc --noEmit)
       - name: TypeScript (tsc --noEmit)
-        # Détecte les erreurs de typage sans compiler
         run: npm run typecheck
