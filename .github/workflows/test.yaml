@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: build
-        run: gh pr comment ${{ github.event.pull_request.number }} --body
+        run: gh pr comment ${{ github.event.pull_request.number }} --body "coucou" 
         env : 
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
