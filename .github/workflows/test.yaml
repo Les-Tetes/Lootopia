@@ -8,5 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Build
-        run: echo "hello world"
+      - name: build
+        run: gh pr comment ${{ github.event.pull_request.number }} --body
+        env : 
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        
