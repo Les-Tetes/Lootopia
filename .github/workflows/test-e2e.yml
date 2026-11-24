@@ -14,43 +14,33 @@ concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   e2e:
     name: E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detect Playwright setup
-        id: detect
-        run: |
-          if ls playwright.config.* >/dev/null 2>&1 && grep -q '"test:e2e"' package.json; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Playwright n'est pas encore configuré (playwright.config.* ou script test:e2e manquant) : tests E2E ignorés."
-          fi
-
       - uses: actions/setup-node@v4
-        if: steps.detect.outputs.enabled == 'true'
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Install dependencies
-        if: steps.detect.outputs.enabled == 'true'
         run: npm ci --ignore-scripts
 
       - name: Install Playwright browser
-        if: steps.detect.outputs.enabled == 'true'
-        run: npx --no-install playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        if: steps.detect.outputs.enabled == 'true'
         run: npm run test:e2e
 
       - name: Upload Playwright report
-        if: ${{ !cancelled() && steps.detect.outputs.enabled == 'true' }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
