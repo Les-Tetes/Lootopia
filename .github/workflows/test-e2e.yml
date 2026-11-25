@@ -1,7 +1,6 @@
 name: test-e2e
 
 on:
-  # Vérification lourde : appelé par pre-release.yml sur les PR vers main
   workflow_call:
 
 concurrency:

@@ -3,9 +3,11 @@ name: Quality
 
 # Déclencheurs : quand ce workflow se lance
 on:
-  # À l'ouverture / mise à jour d'une Pull Request ciblant main ou develop
+  # À l'ouverture / mise à jour d'une Pull Request ciblant develop
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
+  # PR vers main : appelé par pre-release.yml
+  workflow_call:
   # À chaque push sur main
   push:
     branches: [main]
@@ -58,7 +60,6 @@ jobs:
           DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
         run: npx prisma generate
       # Analyse statique de tout le monorepo (api + web), 0 warning toléré
-      # (inclut la complexité : `complexity`, `sonarjs/cognitive-complexity`, `max-depth`...)
       - name: ESLint
         run: npm run lint
       # Détecte le code copié-collé entre fichiers ; échoue au-delà de 3 % (config : .jscpd.json)

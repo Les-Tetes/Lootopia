@@ -1,6 +1,9 @@
 name: test
 on:
     pull_request:
+      # PR vers main : appelé par pre-release.yml
+      branches-ignore: [main]
+    workflow_call:
 
 concurrency:
   group: test-${{ github.ref }}

@@ -24,10 +24,11 @@ npm run dev:web   # http://localhost:5173
 
 ## CI
 
-- On every Pull Request (to `develop` or `main`), light checks run as their own workflows:
-  `quality` (lint, complexity, duplication, types), `test` (unit tests), `pr-title`.
-- On Pull Requests to `main` only, heavy checks run inside `pre-release.yml`: `build` and `e2e`
+- On Pull Requests to `develop`, only the light checks run: `quality` (lint, complexity,
+  duplication, types), `test` (unit tests), `pr-title`.
+- On Pull Requests to `main`, `pre-release.yml` runs `quality`, `test`, `build` and `e2e`
   (reused through `workflow_call`), then the pre-release version when the PR comes from `develop`.
+  `pr-title` runs on its own.
 
 ## Pre-release versions
 

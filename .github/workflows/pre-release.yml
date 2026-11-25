@@ -2,10 +2,9 @@
 # Exemple : 0.4.0-pr.12.3 = prochaine version 0.4.0, PR n° 12, 3 commits dans la PR
 # Rien n'est publié : pas de tag, pas de release, pas de push.
 #
-# La CI est découpée en deux :
-# - vérifications légères, sur toutes les PR (workflows séparés) : quality, test, pr-title
-# - vérifications lourdes, seulement sur les PR vers main (lancées ici) : build et e2e,
-#   puis la version si la PR vient de develop
+# Sur les PR vers develop, seuls quality, test et pr-title tournent (workflows séparés).
+# Sur les PR vers main, ce workflow lance quality, test, build et e2e, puis la version
+# si la PR vient de develop.
 name: Pre-release
 
 on:
@@ -21,41 +20,29 @@ permissions:
   contents: read
 
 jobs:
-  # Vérifications lourdes : on réutilise les workflows existants (workflow_call)
+  # On réutilise les workflows existants (workflow_call)
+  quality:
+    uses: ./.github/workflows/quality.yml
+  test:
+    uses: ./.github/workflows/test.yml
   build:
     uses: ./.github/workflows/build.yaml
   e2e:
     uses: ./.github/workflows/test-e2e.yml
 
-  # Pas de `name:` sur ce job : l'action d'attente s'exclut elle-même grâce à
-  # l'identifiant du job (`pre-release`). Avec un `name:`, elle s'attendrait elle-même.
   pre-release:
     # Seulement pour la PR develop -> main (pas pour un correctif direct vers main)
     if: github.head_ref == 'develop'
-    # Ne démarre que si build et e2e ont réussi
-    needs: [build, e2e]
+    # Ne démarre que si tous les checks ont réussi
+    needs: [quality, test, build, e2e]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
-      # Lire l'état des autres checks de la PR
-      checks: read
       # semantic-release vérifie qu'il aurait le droit de pousser, même en simulation
       # (--dry-run) ; il ne pousse rien
       contents: write
     steps:
-      # 1. Attend que les vérifications légères (quality, test) soient terminées :
-      #    le job échoue si l'une d'elles échoue.
-      - name: Wait for other checks
-        uses: poseidon/wait-for-status-checks@e7e24423722c5b8e97a6dd5848827d2a412f812d # v0.7.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Laisse aux autres workflows le temps de démarrer
-          delay: 10s
-          timeout: 1200s
-          # Le titre de la PR ne compte pas pour la version
-          ignore: Conventional Commits
-
-      # 2. Récupère la branche de la PR avec tout l'historique et les tags
+      # 1. Récupère la branche de la PR avec tout l'historique et les tags
       #    (nécessaires pour trouver la dernière version et les commits depuis)
       - uses: actions/checkout@v4
         with:
@@ -70,7 +57,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      # 3. Calcule la prochaine version à partir des Conventional Commits
+      # 2. Calcule la prochaine version à partir des Conventional Commits
       #    (feat -> mineure, fix/perf -> patch, `!` -> majeure)
       - name: Compute next version
         id: next
@@ -89,7 +76,7 @@ jobs:
           VERSION=$(grep -oE 'next release version is [^ ]+' release.log | awk '{print $NF}' || true)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # 4. Ajoute le suffixe de PR et affiche la version dans le résumé du job
+      # 3. Ajoute le suffixe de PR et affiche la version dans le résumé du job
       - name: Show pre-release version
         env:
           NEXT_VERSION: ${{ steps.next.outputs.version }}
