@@ -1,16 +1,7 @@
 name: test-e2e
 
 on:
-  # PR vers main (livraison) : lancé directement
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'apps/web/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'playwright.config.*'
-      - '.github/workflows/test-e2e.yml'
-  # PR vers develop : appelé par pre-release.yml (vérification lourde)
+  # Vérification lourde : appelé par pre-release.yml sur les PR vers main
   workflow_call:
 
 concurrency:
