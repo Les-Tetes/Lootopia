@@ -1,0 +1,50 @@
+name: Release
+
+# Se lance quand develop est fusionnée dans main
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Dernière version : $LAST_TAG"
+
+          # Liste des commits depuis cette version (servira de changelog)
+          if [ "$LAST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --no-merges --format="- %s")
+          else
+            COMMITS=$(git log $LAST_TAG..HEAD --no-merges --format="- %s")
+          fi
+
+          # 3. Découpe la version : v0.3.2 => MAJOR=0, MINOR=3, PATCH=2
+          MAJOR=$(echo $LAST_TAG | cut -d. -f1 | tr -d v)
+          MINOR=$(echo $LAST_TAG | cut -d. -f2)
+          PATCH=$(echo $LAST_TAG | cut -d. -f3)
+
+          # 4. Nouvelle version : un "feat" => 0.4.0, sinon => 0.3.3
+          if echo "$COMMITS" | grep -q "^- feat"; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
+          echo "Nouvelle version : $NEW_TAG"
+
+          # 5. Crée le tag git et la GitHub Release, avec les commits comme changelog
+          gh release create $NEW_TAG --target $GITHUB_SHA --title $NEW_TAG --notes "$COMMITS"
