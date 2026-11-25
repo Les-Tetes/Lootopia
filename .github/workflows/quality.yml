@@ -58,8 +58,12 @@ jobs:
           DATABASE_URL: postgresql://user:password@localhost:5432/lootopia?schema=public
         run: npx prisma generate
       # Analyse statique de tout le monorepo (api + web), 0 warning toléré
+      # (inclut la complexité : `complexity`, `sonarjs/cognitive-complexity`, `max-depth`...)
       - name: ESLint
         run: npm run lint
+      # Détecte le code copié-collé entre fichiers ; échoue au-delà de 3 % (config : .jscpd.json)
+      - name: Duplication (jscpd)
+        run: npm run duplication
       # Vérifie le formatage Prettier ; ignoré tant que le script n'existe pas
       - name: Prettier (check)
         run: npm run format:check --if-present

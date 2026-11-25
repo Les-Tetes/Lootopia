@@ -17,7 +17,8 @@ npm run dev:web   # http://localhost:5173
 
 ## Scripts
 
-- `npm run lint`: strict ESLint on the whole repository (zero warnings)
+- `npm run lint`: strict ESLint on the whole repository (zero warnings), including complexity rules
+- `npm run duplication`: copy-paste detection with jscpd, fails above 3 % duplication (`.jscpd.json`)
 - `npm run typecheck`: TypeScript checks
 - `npm run build`: production builds
 
@@ -25,7 +26,8 @@ npm run dev:web   # http://localhost:5173
 
 On Pull Requests to `develop`:
 
-- light checks run as their own workflows: `quality` (lint, types), `test` (unit tests), `pr-title`;
+- light checks run as their own workflows: `quality` (lint, complexity, duplication, types),
+  `test` (unit tests), `pr-title`;
 - heavy checks run inside `pre-release.yml`: `build` and `e2e` (reused through `workflow_call`),
   then the pre-release version.
 
