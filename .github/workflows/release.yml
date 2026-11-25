@@ -8,10 +8,16 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version_release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,6 +33,7 @@ jobs:
         run: npm run build
 
       - name: Create release
+        id: version_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -57,3 +64,36 @@ jobs:
 
           # 5. Crée le tag git et la GitHub Release, avec les commits comme changelog
           gh release create $NEW_TAG --target $GITHUB_SHA --title $NEW_TAG --notes "$COMMITS"
+
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ steps.version_release.outputs.tag }}
+          path: |
+            apps/api/dist/
+            apps/web/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish ${{ needs.release.outputs.tag }}
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.release.outputs.tag }}
+          path: build
+
+      - name: Attach build to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          (cd build/api/dist && zip -r "$GITHUB_WORKSPACE/lootopia-api-$TAG.zip" .)
+          (cd build/web/dist && zip -r "$GITHUB_WORKSPACE/lootopia-web-$TAG.zip" .)
+          gh release upload "$TAG" lootopia-api-$TAG.zip lootopia-web-$TAG.zip --repo "$GITHUB_REPOSITORY"
+
