@@ -21,6 +21,16 @@ npm run dev:web   # http://localhost:5173
 - `npm run typecheck`: TypeScript checks
 - `npm run build`: production builds
 
+## CI
+
+On Pull Requests to `develop`:
+
+- light checks run as their own workflows: `quality` (lint, types), `test` (unit tests), `pr-title`;
+- heavy checks run inside `pre-release.yml`: `build` and `e2e` (reused through `workflow_call`),
+  then the pre-release version.
+
+On Pull Requests to `main`, `build` and `e2e` run directly, only when the relevant files change.
+
 ## Pre-release versions
 
 Each Pull Request to `develop` gets a pre-release version (`.github/workflows/pre-release.yml`),

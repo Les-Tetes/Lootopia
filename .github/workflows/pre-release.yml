@@ -1,6 +1,10 @@
 # Attribue une version de pre-release à chaque Pull Request vers develop (issue #8)
 # Exemple : 0.4.0-pr.12.3 = prochaine version 0.4.0, PR n° 12, 3 commits dans la PR
 # Rien n'est publié : pas de tag, pas de release, pas de push.
+#
+# Sur les PR vers develop, la CI est découpée en deux :
+# - vérifications légères, workflows séparés : quality, test, pr-title
+# - vérifications lourdes, lancées ici : build et e2e, puis la version
 name: Pre-release
 
 on:
@@ -16,9 +20,17 @@ permissions:
   contents: read
 
 jobs:
+  # Vérifications lourdes : on réutilise les workflows existants (workflow_call)
+  build:
+    uses: ./.github/workflows/build.yaml
+  e2e:
+    uses: ./.github/workflows/test-e2e.yml
+
   # Pas de `name:` sur ce job : l'action d'attente s'exclut elle-même grâce à
   # l'identifiant du job (`pre-release`). Avec un `name:`, elle s'attendrait elle-même.
   pre-release:
+    # Ne démarre que si build et e2e ont réussi
+    needs: [build, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -28,9 +40,8 @@ jobs:
       # (--dry-run) ; il ne pousse rien
       contents: write
     steps:
-      # 1. Attend que tous les autres checks de la PR (quality, test, build, e2e)
-      #    soient terminés : le job échoue si l'un d'eux échoue.
-      #    Un workflow non déclenché (filtre `paths`) n'est simplement pas attendu.
+      # 1. Attend que les vérifications légères (quality, test) soient terminées :
+      #    le job échoue si l'une d'elles échoue.
       - name: Wait for other checks
         uses: poseidon/wait-for-status-checks@e7e24423722c5b8e97a6dd5848827d2a412f812d # v0.7.0
         with:

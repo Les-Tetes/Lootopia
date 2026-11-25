@@ -1,11 +1,15 @@
 name: Build
 
 on:
+  # PR vers main (livraison) : lancé directement
   pull_request:
+    branches: [main]
     paths:
       - 'apps/**'
       - 'package-lock.json'
       - '.github/workflows/build.yaml'
+  # PR vers develop : appelé par pre-release.yml (vérification lourde)
+  workflow_call:
 
 permissions:
   contents: read
