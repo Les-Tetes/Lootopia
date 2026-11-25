@@ -14,7 +14,7 @@ Node.js >= 24.15 (voir `.nvmrc`).
 
 ## Rôle et charge de l'IA
 
-La production suit trois temps ; l'agent IA n'intervient qu'à l'étape 2 :
+La production du code suit trois temps ; l'agent IA n'intervient qu'à l'étape 2 :
 
 1. **Cadrage et conception** (équipe) : architecture, arbitrages techniques, cas d'usage, maquettes, découpage en tickets.
 2. **Génération** (agents IA) : traitement des tickets dans le respect des normes ci-dessous, des seuils SonarQube et des contrôles du pipeline.
@@ -25,11 +25,14 @@ En pratique, l'agent :
 - traite **le ticket qui lui est confié, et seulement lui** ; il ne prend pas de décision d'architecture ou de périmètre à la place de l'équipe : en cas de doute, il pose la question ;
 - produit un code **que le relecteur peut expliquer** (risque R10) : simple, lisible, sans dépendance ou abstraction superflue ; il décrit dans la PR ce qu'il a fait et pourquoi ;
 - livre **les tests avec le code** (unitaires et, si pertinent, bout en bout) ;
+- nomme ses branches selon la convention décrite dans [Branches](#branches) ;
 - vérifie en local avant de livrer : `npm run lint`, `npm run typecheck`, `npm run test` (et `npm run test:e2e` si le front est touché) ;
 - **ne fusionne jamais** une PR et ne contourne pas les contrôles (pas de `--no-verify`, pas de désactivation de règle ESLint ou Sonar sans accord tracé de l'équipe) ;
 - n'introduit aucun secret dans le code ou l'historique.
 
 Une PR jugée non maîtrisée est rejetée et le ticket repris manuellement.
+
+En dehors du code, l'IA sert aussi à **relire et mettre en forme les documents de rendu** (orthographe, clarté, cohérence, mise en page). Elle ne change pas le fond sans le signaler, et chaque document passe par une **dernière relecture humaine** avant d'être rendu.
 
 ## Normes de développement
 
@@ -77,3 +80,14 @@ La CI attribue automatiquement un numéro de version à chaque Pull Request.
 ## Branches
 
 Branche d'intégration : `develop` (les PR ciblent `develop` ; `main` pour les livraisons).
+
+Dans la mesure du possible, les noms de branches reprennent les types Conventional Commits (voir [Commits et titres de PR](#commits-et-titres-de-pr)) :
+
+```
+<type>/<description-courte>
+```
+
+Règles : type de la liste ci-dessus (`feat`, `fix`, `docs`…), puis une description en minuscules, mots séparés par des tirets, sans accents ni espaces.
+Exemples : `feat/inscription-email`, `fix/api-geolocalisation`, `docs/conventions-branches`.
+
+Seules exceptions : `main` et `develop`, et les branches nommées par un outil quand on ne peut pas choisir le nom.
