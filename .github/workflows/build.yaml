@@ -1,11 +1,7 @@
 name: Build
 
 on:
-  pull_request:
-    paths:
-      - 'apps/**'
-      - 'package-lock.json'
-      - '.github/workflows/build.yaml'
+  workflow_call:
 
 permissions:
   contents: read

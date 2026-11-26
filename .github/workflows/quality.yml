@@ -3,9 +3,11 @@ name: Quality
 
 # Déclencheurs : quand ce workflow se lance
 on:
-  # À l'ouverture / mise à jour d'une Pull Request ciblant main ou develop
+  # À l'ouverture / mise à jour d'une Pull Request ciblant develop
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
+  # PR vers main : appelé par pre-release.yml
+  workflow_call:
   # À chaque push sur main
   push:
     branches: [main]
@@ -60,6 +62,9 @@ jobs:
       # Analyse statique de tout le monorepo (api + web), 0 warning toléré
       - name: ESLint
         run: npm run lint
+      # Détecte le code copié-collé entre fichiers ; échoue au-delà de 3 % (config : .jscpd.json)
+      - name: Duplication (jscpd)
+        run: npm run duplication
       # Vérifie le formatage Prettier ; ignoré tant que le script n'existe pas
       - name: Prettier (check)
         run: npm run format:check --if-present

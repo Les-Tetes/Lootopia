@@ -1,0 +1,94 @@
+# Attribue une version de pre-release à la Pull Request develop -> main (issue #8)
+# Exemple : 0.4.0-pr.12.3 = prochaine version 0.4.0, PR n° 12, 3 commits dans la PR
+# Rien n'est publié : pas de tag, pas de release, pas de push.
+#
+# Sur les PR vers develop, seuls quality, test et pr-title tournent (workflows séparés).
+# Sur les PR vers main, ce workflow lance quality, test, build et e2e, puis la version
+# si la PR vient de develop.
+name: Pre-release
+
+on:
+  pull_request:
+    branches: [main]
+
+# Un nouveau push sur la PR annule le calcul précédent encore en cours
+concurrency:
+  group: pre-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # On réutilise les workflows existants (workflow_call)
+  quality:
+    uses: ./.github/workflows/quality.yml
+  test:
+    uses: ./.github/workflows/test.yml
+  build:
+    uses: ./.github/workflows/build.yaml
+  e2e:
+    uses: ./.github/workflows/test-e2e.yml
+
+  pre-release:
+    # Seulement pour la PR develop -> main (pas pour un correctif direct vers main)
+    if: github.head_ref == 'develop'
+    # Ne démarre que si tous les checks ont réussi
+    needs: [quality, test, build, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # semantic-release vérifie qu'il aurait le droit de pousser, même en simulation
+      # (--dry-run) ; il ne pousse rien
+      contents: write
+    steps:
+      # 1. Récupère la branche de la PR avec tout l'historique et les tags
+      #    (nécessaires pour trouver la dernière version et les commits depuis)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # 2. Calcule la prochaine version à partir des Conventional Commits
+      #    (feat -> mineure, fix/perf -> patch, `!` -> majeure)
+      - name: Compute next version
+        id: next
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          # Arrête le script si semantic-release échoue, même derrière `| tee`
+          set -o pipefail
+          # semantic-release refuse de calculer une version quand il détecte une PR
+          # GitHub : on masque cette détection, le --dry-run garantit que rien n'est publié
+          unset GITHUB_ACTIONS
+          npx semantic-release --dry-run --no-ci --branches "$BRANCH" \
+            --plugins @semantic-release/commit-analyzer --preset conventionalcommits \
+            | tee release.log
+          # Ligne attendue dans le log : "... next release version is 0.4.0"
+          VERSION=$(grep -oE 'next release version is [^ ]+' release.log | awk '{print $NF}' || true)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # 3. Ajoute le suffixe de PR et affiche la version dans le résumé du job
+      - name: Show pre-release version
+        env:
+          NEXT_VERSION: ${{ steps.next.outputs.version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
+        run: |
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "### Pas de nouvelle version" >> "$GITHUB_STEP_SUMMARY"
+            echo "Cette PR ne contient aucun commit \`feat\`, \`fix\`, \`perf\` ou cassant (\`!\`)." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Pre-release::Pas de nouvelle version pour cette PR"
+            exit 0
+          fi
+          PRE_RELEASE="$NEXT_VERSION-pr.$PR_NUMBER.$PR_COMMITS"
+          echo "### Version de pre-release : \`$PRE_RELEASE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Pre-release::$PRE_RELEASE"

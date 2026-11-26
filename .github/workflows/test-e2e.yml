@@ -1,14 +1,7 @@
 name: test-e2e
 
 on:
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'apps/web/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'playwright.config.*'
-      - '.github/workflows/test-e2e.yml'
+  workflow_call:
 
 concurrency:
   group: e2e-${{ github.ref }}
